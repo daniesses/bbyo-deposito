@@ -31,7 +31,7 @@ function parseUsers(rawUsers: string) {
     );
 }
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const authUsers = parseUsers(process.env.BASIC_AUTH_USERS ?? "");
 
   if (authUsers.length === 0) {

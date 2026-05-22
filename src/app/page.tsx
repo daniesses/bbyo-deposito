@@ -31,6 +31,7 @@ type Prestamo = {
 
 const categorias = [
   "Comida/cocina",
+  "Librería",
   "Merch/BBYO things",
   "Botiquin",
   "Ambientación",

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BBYO Deposito",
-  description: "Inventario y prestamos de materiales",
+  title: "BBYO Depósito",
+  description: "Inventario y préstamos de materiales",
 };
 
 export default function RootLayout({

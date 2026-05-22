@@ -30,12 +30,27 @@ type Prestamo = {
 };
 
 const categorias = [
-  "Audio y técnica",
-  "Libreria",
-  "material brandeado",
-  "Judaica y Shabat",
-  "Juegos y recreación",
-  "Oficina",
+  "Comida/cocina",
+  "Merch/BBYO things",
+  "Botiquin",
+  "Ambientación",
+  "Banners",
+  "Otros",
+];
+
+const responsables = [
+  "Daniel",
+  "Catalina",
+  "Carolina",
+  "Hannah",
+  "Irina",
+  "Uriel",
+  "Matias",
+  "Josefina",
+  "Andy",
+  "Diana",
+  "Rocio",
+  "Lucia",
   "Otros",
 ];
 
@@ -66,12 +81,14 @@ export default function Home() {
   const [newLoan, setNewLoan] = useState({
     materialId: "",
     cantidad: 1,
-    responsable: "",
+    responsable: responsables[0],
     motivo: motivos[0],
     fecha_salida: today,
     fecha_devolucion_esperada: today,
     notas: "",
   });
+  const [categoriaCustom, setCategoriaCustom] = useState("");
+  const [responsableCustom, setResponsableCustom] = useState("");
 
   const loadData = useCallback(async () => {
     const [{ data: matsData }, { data: loansData }] = await Promise.all([
@@ -161,7 +178,15 @@ export default function Home() {
 
   async function handleAddMaterial(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!newMaterial.nombre.trim() || !newMaterial.ubicacion_detallada.trim()) {
+    const categoriaFinal =
+      newMaterial.categoria === "Otros"
+        ? categoriaCustom.trim()
+        : newMaterial.categoria;
+    if (
+      !newMaterial.nombre.trim() ||
+      !newMaterial.ubicacion_detallada.trim() ||
+      !categoriaFinal
+    ) {
       return;
     }
 
@@ -169,7 +194,7 @@ export default function Home() {
       .from("materiales")
       .insert({
         nombre: newMaterial.nombre.trim(),
-        categoria: newMaterial.categoria,
+        categoria: categoriaFinal,
         cantidad: Number(newMaterial.cantidad),
         ubicacion_detallada: newMaterial.ubicacion_detallada.trim(),
         estado: newMaterial.estado,
@@ -192,6 +217,7 @@ export default function Home() {
       estado: estadosMaterial[0],
       notas: "",
     });
+    setCategoriaCustom("");
 
     if (data) {
       setNewLoan((current) => ({ ...current, materialId: data.id, cantidad: 1 }));
@@ -202,7 +228,11 @@ export default function Home() {
 
   async function handleAddLoan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedMaterial || !newLoan.responsable.trim()) return;
+    const responsableFinal =
+      newLoan.responsable === "Otros"
+        ? responsableCustom.trim()
+        : newLoan.responsable;
+    if (!selectedMaterial || !responsableFinal) return;
 
     const requestedQuantity = Number(newLoan.cantidad);
     if (
@@ -215,7 +245,7 @@ export default function Home() {
     const { error } = await supabase.from("prestamos").insert({
       material_id: newLoan.materialId,
       cantidad: requestedQuantity,
-      responsable: newLoan.responsable.trim(),
+      responsable: responsableFinal,
       motivo: newLoan.motivo,
       fecha_salida: newLoan.fecha_salida,
       fecha_devolucion_esperada: newLoan.fecha_devolucion_esperada,
@@ -233,12 +263,13 @@ export default function Home() {
     setNewLoan({
       materialId: newLoan.materialId,
       cantidad: 1,
-      responsable: "",
+      responsable: responsables[0],
       motivo: motivos[0],
       fecha_salida: today,
       fecha_devolucion_esperada: today,
       notas: "",
     });
+    setResponsableCustom("");
 
     await loadData();
   }
@@ -329,7 +360,7 @@ export default function Home() {
                 />
               </label>
 
-              <label className={labelClass}>
+              <div className={labelClass}>
                 Categoría
                 <select
                   value={newMaterial.categoria}
@@ -345,7 +376,16 @@ export default function Home() {
                     <option key={categoria}>{categoria}</option>
                   ))}
                 </select>
-              </label>
+                {newMaterial.categoria === "Otros" && (
+                  <input
+                    value={categoriaCustom}
+                    onChange={(event) => setCategoriaCustom(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Escribí la categoría"
+                    required
+                  />
+                )}
+              </div>
 
               <label className={labelClass}>
                 Cantidad
@@ -468,21 +508,31 @@ export default function Home() {
                 />
               </label>
 
-              <label className={labelClass}>
+              <div className={labelClass}>
                 Responsable
-                <input
+                <select
                   value={newLoan.responsable}
                   onChange={(event) =>
-                    setNewLoan({
-                      ...newLoan,
-                      responsable: event.target.value,
-                    })
+                    setNewLoan({ ...newLoan, responsable: event.target.value })
                   }
                   className={fieldClass}
-                  placeholder="Ej: madrijim, tzevet, nombre"
-                  required
-                />
-              </label>
+                >
+                  {responsables.map((r) => (
+                    <option key={r}>{r}</option>
+                  ))}
+                </select>
+                {newLoan.responsable === "Otros" && (
+                  <input
+                    value={responsableCustom}
+                    onChange={(event) =>
+                      setResponsableCustom(event.target.value)
+                    }
+                    className={fieldClass}
+                    placeholder="Escribí el responsable"
+                    required
+                  />
+                )}
+              </div>
 
               <label className={labelClass}>
                 Motivo

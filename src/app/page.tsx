@@ -259,9 +259,9 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <header className="overflow-hidden rounded-lg border border-[#D7E7F6] bg-white shadow-sm">
           <div className="h-2 bg-[#F9A01B]" />
-          <div className="flex flex-col gap-5 px-5 py-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              <div className="flex h-16 w-44 items-center">
+          <div className="flex flex-col gap-5 px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+              <div className="flex h-12 w-36 items-center sm:h-16 sm:w-44">
                 <Image
                   src="/bbyo-logo-argentina.png"
                   alt="BBYO Argentina"
@@ -272,15 +272,15 @@ export default function Home() {
                 />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-[#0072BC] sm:text-4xl">
+                <h1 className="text-2xl font-semibold tracking-tight text-[#0072BC] sm:text-4xl">
                   BBYO Depósito
                 </h1>
-                <p className="mt-2 text-base text-zinc-600 sm:text-lg">
+                <p className="mt-1 text-sm text-zinc-600 sm:mt-2 sm:text-lg">
                   Inventario y préstamos de materiales
                 </p>
               </div>
             </div>
-            <div className="rounded-md border border-[#D7E7F6] bg-[#F5F8FB] px-4 py-3 text-sm font-medium text-[#0072BC]">
+            <div className="rounded-md border border-[#D7E7F6] bg-[#F5F8FB] px-3 py-2 text-sm font-medium text-[#0072BC] sm:px-4 sm:py-3">
               Depósito único: Huerta
             </div>
           </div>
@@ -551,7 +551,56 @@ export default function Home() {
                 placeholder="Buscar por nombre, categoría o ubicación"
               />
             </div>
-            <div className="overflow-x-auto">
+            <div className="grid gap-3 p-4 md:hidden">
+              {filteredInventory.map((item) => (
+                <article
+                  key={item.id}
+                  className="rounded-lg border border-[#D7E7F6] bg-[#F8FBFE] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-zinc-900">
+                        {item.nombre}
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-600">
+                        {item.categoria}
+                      </p>
+                    </div>
+                    <span className="rounded-md bg-white px-3 py-1 text-sm font-semibold text-[#0072BC]">
+                      {item.disponible} disp.
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-zinc-500">Total</dt>
+                      <dd className="font-medium text-zinc-900">
+                        {item.cantidad}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-500">Prestado</dt>
+                      <dd className="font-medium text-zinc-900">
+                        {item.prestada}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-500">Estado</dt>
+                      <dd className="font-medium text-zinc-900">
+                        {item.estado}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-zinc-500">Ubicación</dt>
+                      <dd className="font-medium text-zinc-900">
+                        {item.ubicacion_detallada}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[780px] text-left text-sm">
                 <thead className="bg-[#EEF6FC] text-[#33566F]">
                   <tr>
@@ -609,7 +658,7 @@ export default function Home() {
               ) : (
                 activeLoans.map((loan) => (
                   <div key={loan.id} className="flex flex-col gap-4 px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                       <div>
                         <p className="font-medium text-zinc-900">
                           {loan.material}
@@ -635,7 +684,7 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => handleReturnLoan(loan.id)}
-                      className="rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-semibold text-[#0072BC] transition hover:border-[#0072BC]/40 hover:bg-[#F5F8FB]"
+                      className="w-full rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-semibold text-[#0072BC] transition hover:border-[#0072BC]/40 hover:bg-[#F5F8FB] sm:w-auto"
                     >
                       Registrar devolución
                     </button>

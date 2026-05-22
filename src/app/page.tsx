@@ -1,13 +1,14 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { supabase } from "@/lib/supabase";
 
 type MaterialStatus = "Disponible" | "A revisar" | "Dañado" | "Perdido";
 type LoanStatus = "Activo" | "Devuelto" | "Vencido";
 
 type Material = {
-  id: number;
+  id: string;
   nombre: string;
   categoria: string;
   cantidad: number;
@@ -17,8 +18,8 @@ type Material = {
 };
 
 type Prestamo = {
-  id: number;
-  materialId: number;
+  id: string;
+  material_id: string;
   cantidad: number;
   responsable: string;
   motivo: string;
@@ -47,55 +48,12 @@ const estadosMaterial: MaterialStatus[] = [
 
 const motivos = ["Chapter Meeting", "Evento Regional", "Otro"];
 
-const initialMaterials: Material[] = [
-  {
-    id: 1,
-    nombre: "Parlante portátil",
-    categoria: "Audio y técnica",
-    cantidad: 4,
-    ubicacion_detallada: "Huerta - estante técnica",
-    estado: "Disponible",
-    notas: "Incluye cable de carga.",
-  },
-  {
-    id: 2,
-    nombre: "Sidurim",
-    categoria: "Judaica y Shabat",
-    cantidad: 20,
-    ubicacion_detallada: "Huerta - caja Judaica",
-    estado: "Disponible",
-    notas: "Para Kabalat Shabat.",
-  },
-  {
-    id: 3,
-    nombre: "Banderas BBYO",
-    categoria: "material brandeado",
-    cantidad: 6,
-    ubicacion_detallada: "Huerta - cajón brandeado",
-    estado: "A revisar",
-    notas: "Revisar estado de los soportes.",
-  },
-];
-
-const initialLoans: Prestamo[] = [
-  {
-    id: 1,
-    materialId: 1,
-    cantidad: 1,
-    responsable: "Tzevet eventos",
-    motivo: "Evento Regional",
-    fecha_salida: "2026-05-20",
-    fecha_devolucion_esperada: "2026-05-26",
-    estado: "Activo",
-    notas: "Sale para actividad regional.",
-  },
-];
-
 const today = new Date().toISOString().slice(0, 10);
 
 export default function Home() {
-  const [materials, setMaterials] = useState<Material[]>(initialMaterials);
-  const [loans, setLoans] = useState<Prestamo[]>(initialLoans);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loans, setLoans] = useState<Prestamo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [newMaterial, setNewMaterial] = useState({
     nombre: "",
@@ -106,7 +64,7 @@ export default function Home() {
     notas: "",
   });
   const [newLoan, setNewLoan] = useState({
-    materialId: initialMaterials[0].id,
+    materialId: "",
     cantidad: 1,
     responsable: "",
     motivo: motivos[0],
@@ -115,12 +73,50 @@ export default function Home() {
     notas: "",
   });
 
-  const cantidadPrestadaPorMaterial = useMemo(() => {
-    return loans.reduce<Record<number, number>>((acc, loan) => {
-      if (loan.estado === "Activo" || loan.estado === "Vencido") {
-        acc[loan.materialId] = (acc[loan.materialId] ?? 0) + loan.cantidad;
-      }
+  const loadData = useCallback(async () => {
+    const [{ data: matsData }, { data: loansData }] = await Promise.all([
+      supabase.from("materiales").select("*").order("created_at"),
+      supabase.from("prestamos").select("*").order("created_at"),
+    ]);
 
+    if (matsData) setMaterials(matsData as Material[]);
+    if (loansData) setLoans(loansData as Prestamo[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadData();
+
+    const channel = supabase
+      .channel("db-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "materiales" },
+        loadData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "prestamos" },
+        loadData,
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadData]);
+
+  useEffect(() => {
+    if (materials.length > 0 && !newLoan.materialId) {
+      setNewLoan((current) => ({ ...current, materialId: materials[0].id }));
+    }
+  }, [materials, newLoan.materialId]);
+
+  const cantidadPrestadaPorMaterial = useMemo(() => {
+    return loans.reduce<Record<string, number>>((acc, loan) => {
+      if (loan.estado === "Activo" || loan.estado === "Vencido") {
+        acc[loan.material_id] = (acc[loan.material_id] ?? 0) + loan.cantidad;
+      }
       return acc;
     }, {});
   }, [loans]);
@@ -128,7 +124,6 @@ export default function Home() {
   const inventory = useMemo(() => {
     return materials.map((material) => {
       const prestada = cantidadPrestadaPorMaterial[material.id] ?? 0;
-
       return {
         ...material,
         prestada,
@@ -139,18 +134,12 @@ export default function Home() {
 
   const filteredInventory = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return inventory;
-    }
-
-    return inventory.filter((material) => {
-      return [
-        material.nombre,
-        material.categoria,
-        material.ubicacion_detallada,
-      ].some((field) => field.toLowerCase().includes(normalizedSearch));
-    });
+    if (!normalizedSearch) return inventory;
+    return inventory.filter((material) =>
+      [material.nombre, material.categoria, material.ubicacion_detallada].some(
+        (field) => field.toLowerCase().includes(normalizedSearch),
+      ),
+    );
   }, [inventory, search]);
 
   const activeLoans = useMemo(() => {
@@ -161,33 +150,34 @@ export default function Home() {
         estado:
           loan.fecha_devolucion_esperada < today ? "Vencido" : loan.estado,
         material:
-          materials.find((material) => material.id === loan.materialId)
+          materials.find((material) => material.id === loan.material_id)
             ?.nombre ?? "Material eliminado",
       }));
   }, [loans, materials]);
 
   const selectedMaterial = inventory.find(
-    (material) => material.id === Number(newLoan.materialId),
+    (material) => material.id === newLoan.materialId,
   );
 
-  function handleAddMaterial(event: FormEvent<HTMLFormElement>) {
+  async function handleAddMaterial(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!newMaterial.nombre.trim() || !newMaterial.ubicacion_detallada.trim()) {
       return;
     }
 
-    const material: Material = {
-      ...newMaterial,
-      id: Date.now(),
-      nombre: newMaterial.nombre.trim(),
-      cantidad: Number(newMaterial.cantidad),
-      ubicacion_detallada: newMaterial.ubicacion_detallada.trim(),
-      estado: newMaterial.estado as MaterialStatus,
-      notas: newMaterial.notas.trim(),
-    };
+    const { data } = await supabase
+      .from("materiales")
+      .insert({
+        nombre: newMaterial.nombre.trim(),
+        categoria: newMaterial.categoria,
+        cantidad: Number(newMaterial.cantidad),
+        ubicacion_detallada: newMaterial.ubicacion_detallada.trim(),
+        estado: newMaterial.estado,
+        notas: newMaterial.notas.trim(),
+      })
+      .select()
+      .single();
 
-    setMaterials((currentMaterials) => [...currentMaterials, material]);
     setNewMaterial({
       nombre: "",
       categoria: categorias[0],
@@ -196,29 +186,26 @@ export default function Home() {
       estado: estadosMaterial[0],
       notas: "",
     });
-    setNewLoan((currentLoan) => ({
-      ...currentLoan,
-      materialId: material.id,
-      cantidad: 1,
-    }));
+
+    if (data) {
+      setNewLoan((current) => ({ ...current, materialId: data.id, cantidad: 1 }));
+    }
   }
 
-  function handleAddLoan(event: FormEvent<HTMLFormElement>) {
+  async function handleAddLoan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!selectedMaterial || !newLoan.responsable.trim()) {
-      return;
-    }
+    if (!selectedMaterial || !newLoan.responsable.trim()) return;
 
     const requestedQuantity = Number(newLoan.cantidad);
-
-    if (requestedQuantity < 1 || requestedQuantity > selectedMaterial.disponible) {
+    if (
+      requestedQuantity < 1 ||
+      requestedQuantity > selectedMaterial.disponible
+    ) {
       return;
     }
 
-    const loan: Prestamo = {
-      id: Date.now(),
-      materialId: Number(newLoan.materialId),
+    await supabase.from("prestamos").insert({
+      material_id: newLoan.materialId,
       cantidad: requestedQuantity,
       responsable: newLoan.responsable.trim(),
       motivo: newLoan.motivo,
@@ -227,11 +214,10 @@ export default function Home() {
       estado:
         newLoan.fecha_devolucion_esperada < today ? "Vencido" : "Activo",
       notas: newLoan.notas.trim(),
-    };
+    });
 
-    setLoans((currentLoans) => [...currentLoans, loan]);
     setNewLoan({
-      materialId: Number(newLoan.materialId),
+      materialId: newLoan.materialId,
       cantidad: 1,
       responsable: "",
       motivo: motivos[0],
@@ -241,18 +227,25 @@ export default function Home() {
     });
   }
 
-  function handleReturnLoan(loanId: number) {
-    setLoans((currentLoans) =>
-      currentLoans.map((loan) =>
-        loan.id === loanId ? { ...loan, estado: "Devuelto" } : loan,
-      ),
-    );
+  async function handleReturnLoan(loanId: string) {
+    await supabase
+      .from("prestamos")
+      .update({ estado: "Devuelto" })
+      .eq("id", loanId);
   }
 
   const panelClass = "rounded-lg border border-[#D7E7F6] bg-white shadow-sm";
   const fieldClass =
     "rounded-md border border-[#C9D8E6] bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#0072BC] focus:ring-2 focus:ring-[#0072BC]/15";
   const labelClass = "flex flex-col gap-2 text-sm font-medium text-[#243746]";
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F5F8FB]">
+        <p className="text-zinc-500">Cargando inventario...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#F5F8FB] px-4 py-6 text-[#1F2D3A] sm:px-6 lg:px-8">
@@ -420,7 +413,7 @@ export default function Home() {
                   onChange={(event) =>
                     setNewLoan({
                       ...newLoan,
-                      materialId: Number(event.target.value),
+                      materialId: event.target.value,
                       cantidad: 1,
                     })
                   }

@@ -165,7 +165,7 @@ export default function Home() {
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("materiales")
       .insert({
         nombre: newMaterial.nombre.trim(),
@@ -177,6 +177,12 @@ export default function Home() {
       })
       .select()
       .single();
+
+    if (error) {
+      console.error("Error al guardar material:", error);
+      alert(`Error al guardar: ${error.message}`);
+      return;
+    }
 
     setNewMaterial({
       nombre: "",
@@ -190,6 +196,8 @@ export default function Home() {
     if (data) {
       setNewLoan((current) => ({ ...current, materialId: data.id, cantidad: 1 }));
     }
+
+    await loadData();
   }
 
   async function handleAddLoan(event: FormEvent<HTMLFormElement>) {
@@ -204,7 +212,7 @@ export default function Home() {
       return;
     }
 
-    await supabase.from("prestamos").insert({
+    const { error } = await supabase.from("prestamos").insert({
       material_id: newLoan.materialId,
       cantidad: requestedQuantity,
       responsable: newLoan.responsable.trim(),
@@ -216,6 +224,12 @@ export default function Home() {
       notas: newLoan.notas.trim(),
     });
 
+    if (error) {
+      console.error("Error al registrar préstamo:", error);
+      alert(`Error al guardar: ${error.message}`);
+      return;
+    }
+
     setNewLoan({
       materialId: newLoan.materialId,
       cantidad: 1,
@@ -225,13 +239,22 @@ export default function Home() {
       fecha_devolucion_esperada: today,
       notas: "",
     });
+
+    await loadData();
   }
 
   async function handleReturnLoan(loanId: string) {
-    await supabase
+    const { error } = await supabase
       .from("prestamos")
       .update({ estado: "Devuelto" })
       .eq("id", loanId);
+
+    if (error) {
+      console.error("Error al registrar devolución:", error);
+      return;
+    }
+
+    await loadData();
   }
 
   const panelClass = "rounded-lg border border-[#D7E7F6] bg-white shadow-sm";

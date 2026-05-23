@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
@@ -79,6 +79,7 @@ export default function Home() {
   const [responsableFilter, setResponsableFilter] = useState("Todos");
   const [showHistorial, setShowHistorial] = useState(false);
   const [collapsedCategorias, setCollapsedCategorias] = useState<Set<string>>(new Set());
+  const categoriasInitialized = useRef(false);
   const [editingMaterial, setEditingMaterial] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     nombre: "",
@@ -128,6 +129,13 @@ export default function Home() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [loadData]);
+
+  useEffect(() => {
+    if (!categoriasInitialized.current && materials.length > 0) {
+      categoriasInitialized.current = true;
+      setCollapsedCategorias(new Set(materials.map((m) => m.categoria)));
+    }
+  }, [materials]);
 
   useEffect(() => {
     if (materials.length > 0 && !newLoan.materialId) {

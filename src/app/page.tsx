@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
@@ -78,6 +78,7 @@ export default function Home() {
   const [categoriaFilter, setCategoriaFilter] = useState("Todas");
   const [responsableFilter, setResponsableFilter] = useState("Todos");
   const [showHistorial, setShowHistorial] = useState(false);
+  const [collapsedCategorias, setCollapsedCategorias] = useState<Set<string>>(new Set());
   const [editingMaterial, setEditingMaterial] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({
     nombre: "",
@@ -164,6 +165,15 @@ export default function Home() {
     );
     return result;
   }, [inventory, search, categoriaFilter]);
+
+  const groupedInventory = useMemo(() => {
+    const groups: Record<string, InventoryItem[]> = {};
+    for (const item of filteredInventory) {
+      if (!groups[item.categoria]) groups[item.categoria] = [];
+      groups[item.categoria].push(item);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, "es"));
+  }, [filteredInventory]);
 
   const activeLoans = useMemo(() => {
     return loans
@@ -339,6 +349,15 @@ export default function Home() {
     a.download = `bbyo-deposito-${today}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function toggleCategoria(cat: string) {
+    setCollapsedCategorias((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
   }
 
   // ── Styles ────────────────────────────────────────────────────────────────
@@ -527,78 +546,92 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Mobile cards */}
-            <div className="grid gap-3 p-4 md:hidden">
-              {filteredInventory.map((item) => (
-                <article key={item.id} className={`rounded-lg border p-4 ${editingMaterial === item.id ? "border-[#0072BC]/30 bg-[#EEF6FC]" : "border-[#D7E7F6] bg-[#F8FBFE]"}`}>
-                  {editingMaterial === item.id ? (
-                    <div className="flex flex-col gap-3">
-                      <input value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={fieldClass} placeholder="Nombre" />
-                      <select value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value })} className={fieldClass}>
-                        {categorias.map((c) => <option key={c}>{c}</option>)}
-                      </select>
-                      {editForm.categoria === "Otros" && (
-                        <input value={editForm.categoriaCustom} onChange={(e) => setEditForm({ ...editForm, categoriaCustom: e.target.value })} className={fieldClass} placeholder="Categoría personalizada" />
-                      )}
-                      <div className="grid grid-cols-2 gap-3">
-                        <label className={labelClass}>
-                          Cantidad
-                          <input type="number" min={item.prestada} value={editForm.cantidad} onChange={(e) => setEditForm({ ...editForm, cantidad: Number(e.target.value) })} className={fieldClass} />
-                        </label>
-                        <label className={labelClass}>
-                          Estado
-                          <select value={editForm.estado} onChange={(e) => setEditForm({ ...editForm, estado: e.target.value as MaterialStatus })} className={fieldClass}>
-                            {estadosMaterial.map((e) => <option key={e}>{e}</option>)}
-                          </select>
-                        </label>
+            {/* Mobile cards — agrupadas por categoría */}
+            <div className="divide-y divide-zinc-100 md:hidden">
+              {groupedInventory.map(([cat, items]) => {
+                const collapsed = collapsedCategorias.has(cat);
+                return (
+                  <div key={cat}>
+                    <button type="button" onClick={() => toggleCategoria(cat)} className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#F5F8FB]">
+                      <span className="font-semibold text-[#0072BC]">{cat}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="rounded-full bg-[#EEF6FC] px-2 py-0.5 text-xs font-medium text-zinc-500">{items.length}</span>
+                        <span className="text-xs text-zinc-400">{collapsed ? "▶" : "▼"}</span>
+                      </span>
+                    </button>
+                    {!collapsed && (
+                      <div className="grid gap-3 p-4 pt-2">
+                        {items.map((item) => (
+                          <article key={item.id} className={`rounded-lg border p-4 ${editingMaterial === item.id ? "border-[#0072BC]/30 bg-[#EEF6FC]" : "border-[#D7E7F6] bg-[#F8FBFE]"}`}>
+                            {editingMaterial === item.id ? (
+                              <div className="flex flex-col gap-3">
+                                <input value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={fieldClass} placeholder="Nombre" />
+                                <select value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value })} className={fieldClass}>
+                                  {categorias.map((c) => <option key={c}>{c}</option>)}
+                                </select>
+                                {editForm.categoria === "Otros" && (
+                                  <input value={editForm.categoriaCustom} onChange={(e) => setEditForm({ ...editForm, categoriaCustom: e.target.value })} className={fieldClass} placeholder="Categoría personalizada" />
+                                )}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <label className={labelClass}>
+                                    Cantidad
+                                    <input type="number" min={item.prestada} value={editForm.cantidad} onChange={(e) => setEditForm({ ...editForm, cantidad: Number(e.target.value) })} className={fieldClass} />
+                                  </label>
+                                  <label className={labelClass}>
+                                    Estado
+                                    <select value={editForm.estado} onChange={(e) => setEditForm({ ...editForm, estado: e.target.value as MaterialStatus })} className={fieldClass}>
+                                      {estadosMaterial.map((e) => <option key={e}>{e}</option>)}
+                                    </select>
+                                  </label>
+                                </div>
+                                <input value={editForm.ubicacion_detallada} onChange={(e) => setEditForm({ ...editForm, ubicacion_detallada: e.target.value })} className={fieldClass} placeholder="Ubicación detallada" />
+                                <textarea value={editForm.notas} onChange={(e) => setEditForm({ ...editForm, notas: e.target.value })} className={`${fieldClass} min-h-16`} placeholder="Notas" />
+                                <div className="flex gap-2">
+                                  <button type="button" onClick={() => handleSaveEdit(item.id, item.prestada)} className="flex-1 rounded-md bg-[#0072BC] px-3 py-2 text-sm font-semibold text-white hover:bg-[#005C96]">Guardar</button>
+                                  <button type="button" onClick={() => setEditingMaterial(null)} className="flex-1 rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-start justify-between gap-3">
+                                  <h3 className="font-semibold text-zinc-900">{item.nombre}</h3>
+                                  <span className="shrink-0 rounded-md bg-white px-3 py-1 text-sm font-semibold text-[#0072BC]">{item.disponible} disp.</span>
+                                </div>
+                                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <dt className="text-zinc-500">Total</dt>
+                                    <dd className="flex items-center gap-1.5 font-medium text-zinc-900">
+                                      <button type="button" onClick={() => handleQuickQuantity(item.id, -1, item.cantidad, item.prestada)} disabled={item.cantidad <= item.prestada} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100 disabled:opacity-40">−</button>
+                                      {item.cantidad}
+                                      <button type="button" onClick={() => handleQuickQuantity(item.id, 1, item.cantidad, item.prestada)} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100">+</button>
+                                    </dd>
+                                  </div>
+                                  <div><dt className="text-zinc-500">Prestado</dt><dd className="font-medium text-zinc-900">{item.prestada}</dd></div>
+                                  <div><dt className="text-zinc-500">Estado</dt><dd className="font-medium text-zinc-900">{item.estado}</dd></div>
+                                  <div><dt className="text-zinc-500">Ubicación</dt><dd className="font-medium text-zinc-900">{item.ubicacion_detallada}</dd></div>
+                                </dl>
+                                {item.notas && <p className="mt-2 text-sm text-zinc-500">{item.notas}</p>}
+                                <div className="mt-3 flex gap-2">
+                                  <button type="button" onClick={() => handleStartEdit(item)} className="flex-1 rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
+                                  <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="flex-1 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Eliminar</button>
+                                </div>
+                              </>
+                            )}
+                          </article>
+                        ))}
                       </div>
-                      <input value={editForm.ubicacion_detallada} onChange={(e) => setEditForm({ ...editForm, ubicacion_detallada: e.target.value })} className={fieldClass} placeholder="Ubicación detallada" />
-                      <textarea value={editForm.notas} onChange={(e) => setEditForm({ ...editForm, notas: e.target.value })} className={`${fieldClass} min-h-16`} placeholder="Notas" />
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => handleSaveEdit(item.id, item.prestada)} className="flex-1 rounded-md bg-[#0072BC] px-3 py-2 text-sm font-semibold text-white hover:bg-[#005C96]">Guardar</button>
-                        <button type="button" onClick={() => setEditingMaterial(null)} className="flex-1 rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50">Cancelar</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-semibold text-zinc-900">{item.nombre}</h3>
-                          <p className="mt-1 text-sm text-zinc-600">{item.categoria}</p>
-                        </div>
-                        <span className="rounded-md bg-white px-3 py-1 text-sm font-semibold text-[#0072BC]">{item.disponible} disp.</span>
-                      </div>
-                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <dt className="text-zinc-500">Total</dt>
-                          <dd className="flex items-center gap-1.5 font-medium text-zinc-900">
-                            <button type="button" onClick={() => handleQuickQuantity(item.id, -1, item.cantidad, item.prestada)} disabled={item.cantidad <= item.prestada} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100 disabled:opacity-40">−</button>
-                            {item.cantidad}
-                            <button type="button" onClick={() => handleQuickQuantity(item.id, 1, item.cantidad, item.prestada)} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100">+</button>
-                          </dd>
-                        </div>
-                        <div><dt className="text-zinc-500">Prestado</dt><dd className="font-medium text-zinc-900">{item.prestada}</dd></div>
-                        <div><dt className="text-zinc-500">Estado</dt><dd className="font-medium text-zinc-900">{item.estado}</dd></div>
-                        <div><dt className="text-zinc-500">Ubicación</dt><dd className="font-medium text-zinc-900">{item.ubicacion_detallada}</dd></div>
-                      </dl>
-                      {item.notas && <p className="mt-3 text-sm text-zinc-500">{item.notas}</p>}
-                      <div className="mt-3 flex gap-2">
-                        <button type="button" onClick={() => handleStartEdit(item)} className="flex-1 rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
-                        <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="flex-1 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Eliminar</button>
-                      </div>
-                    </>
-                  )}
-                </article>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Desktop table */}
+            {/* Desktop table — agrupada por categoría */}
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[920px] text-left text-sm">
                 <thead className="bg-[#EEF6FC] text-[#33566F]">
                   <tr>
                     <th className="px-4 py-3 font-medium">Material</th>
-                    <th className="px-4 py-3 font-medium">Categoría</th>
                     <th className="px-4 py-3 font-medium">Ubicación</th>
                     <th className="px-4 py-3 font-medium">Estado</th>
                     <th className="px-4 py-3 font-medium">Total</th>
@@ -607,59 +640,66 @@ export default function Home() {
                     <th className="px-4 py-3 font-medium"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {filteredInventory.map((item) =>
-                    editingMaterial === item.id ? (
-                      <tr key={item.id} className="bg-[#EEF6FC]">
-                        <td className="px-3 py-2"><input value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={editFieldClass} /></td>
-                        <td className="px-3 py-2">
-                          <select value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value })} className={editFieldClass}>
-                            {categorias.map((c) => <option key={c}>{c}</option>)}
-                          </select>
-                          {editForm.categoria === "Otros" && (
-                            <input value={editForm.categoriaCustom} onChange={(e) => setEditForm({ ...editForm, categoriaCustom: e.target.value })} className={`${editFieldClass} mt-1`} placeholder="Categoría personalizada" />
-                          )}
-                        </td>
-                        <td className="px-3 py-2"><input value={editForm.ubicacion_detallada} onChange={(e) => setEditForm({ ...editForm, ubicacion_detallada: e.target.value })} className={editFieldClass} /></td>
-                        <td className="px-3 py-2">
-                          <select value={editForm.estado} onChange={(e) => setEditForm({ ...editForm, estado: e.target.value as MaterialStatus })} className={editFieldClass}>
-                            {estadosMaterial.map((e) => <option key={e}>{e}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2"><input type="number" min={item.prestada} value={editForm.cantidad} onChange={(e) => setEditForm({ ...editForm, cantidad: Number(e.target.value) })} className={`${editFieldClass} w-16`} /></td>
-                        <td className="px-3 py-2 text-zinc-600">{item.prestada}</td>
-                        <td className="px-3 py-2 font-semibold text-[#0072BC]">{Math.max(Number(editForm.cantidad) - item.prestada, 0)}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex gap-1">
-                            <button type="button" onClick={() => handleSaveEdit(item.id, item.prestada)} className="rounded bg-[#0072BC] px-2 py-1 text-xs font-semibold text-white hover:bg-[#005C96]">Guardar</button>
-                            <button type="button" onClick={() => setEditingMaterial(null)} className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50">Cancelar</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={item.id} className="hover:bg-[#F8FBFE]">
-                        <td className="px-4 py-4 font-medium text-zinc-900">{item.nombre}</td>
-                        <td className="px-4 py-4 text-zinc-600">{item.categoria}</td>
-                        <td className="px-4 py-4 text-zinc-600">{item.ubicacion_detallada}</td>
-                        <td className="px-4 py-4 text-zinc-600">{item.estado}</td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-1">
-                            <button type="button" onClick={() => handleQuickQuantity(item.id, -1, item.cantidad, item.prestada)} disabled={item.cantidad <= item.prestada} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100 disabled:opacity-40">−</button>
-                            <span className="w-6 text-center text-zinc-700">{item.cantidad}</span>
-                            <button type="button" onClick={() => handleQuickQuantity(item.id, 1, item.cantidad, item.prestada)} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100">+</button>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-zinc-600">{item.prestada}</td>
-                        <td className="px-4 py-4 font-semibold text-[#0072BC]">{item.disponible}</td>
-                        <td className="px-4 py-4">
-                          <div className="flex gap-1">
-                            <button type="button" onClick={() => handleStartEdit(item)} className="rounded border border-[#C9D8E6] px-2 py-1 text-xs font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
-                            <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Eliminar</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ),
-                  )}
+                <tbody>
+                  {groupedInventory.map(([cat, items]) => {
+                    const collapsed = collapsedCategorias.has(cat);
+                    return (
+                      <Fragment key={cat}>
+                        <tr className="cursor-pointer bg-[#F0F7FD] hover:bg-[#E5F0FA]" onClick={() => toggleCategoria(cat)}>
+                          <td colSpan={7} className="px-4 py-2">
+                            <span className="flex items-center gap-2 font-semibold text-[#0072BC]">
+                              <span className="text-xs">{collapsed ? "▶" : "▼"}</span>
+                              {cat}
+                              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-500">{items.length}</span>
+                            </span>
+                          </td>
+                        </tr>
+                        {!collapsed && items.map((item) =>
+                          editingMaterial === item.id ? (
+                            <tr key={item.id} className="bg-[#EEF6FC]">
+                              <td className="px-3 py-2"><input value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} className={editFieldClass} /></td>
+                              <td className="px-3 py-2"><input value={editForm.ubicacion_detallada} onChange={(e) => setEditForm({ ...editForm, ubicacion_detallada: e.target.value })} className={editFieldClass} /></td>
+                              <td className="px-3 py-2">
+                                <select value={editForm.estado} onChange={(e) => setEditForm({ ...editForm, estado: e.target.value as MaterialStatus })} className={editFieldClass}>
+                                  {estadosMaterial.map((e) => <option key={e}>{e}</option>)}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2"><input type="number" min={item.prestada} value={editForm.cantidad} onChange={(e) => setEditForm({ ...editForm, cantidad: Number(e.target.value) })} className={`${editFieldClass} w-16`} /></td>
+                              <td className="px-3 py-2 text-zinc-600">{item.prestada}</td>
+                              <td className="px-3 py-2 font-semibold text-[#0072BC]">{Math.max(Number(editForm.cantidad) - item.prestada, 0)}</td>
+                              <td className="px-3 py-2">
+                                <div className="flex gap-1">
+                                  <button type="button" onClick={() => handleSaveEdit(item.id, item.prestada)} className="rounded bg-[#0072BC] px-2 py-1 text-xs font-semibold text-white hover:bg-[#005C96]">Guardar</button>
+                                  <button type="button" onClick={() => setEditingMaterial(null)} className="rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-50">Cancelar</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            <tr key={item.id} className="border-t border-zinc-100 hover:bg-[#F8FBFE]">
+                              <td className="px-4 py-3 font-medium text-zinc-900">{item.nombre}</td>
+                              <td className="px-4 py-3 text-zinc-600">{item.ubicacion_detallada}</td>
+                              <td className="px-4 py-3 text-zinc-600">{item.estado}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1">
+                                  <button type="button" onClick={() => handleQuickQuantity(item.id, -1, item.cantidad, item.prestada)} disabled={item.cantidad <= item.prestada} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100 disabled:opacity-40">−</button>
+                                  <span className="w-6 text-center text-zinc-700">{item.cantidad}</span>
+                                  <button type="button" onClick={() => handleQuickQuantity(item.id, 1, item.cantidad, item.prestada)} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100">+</button>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-zinc-600">{item.prestada}</td>
+                              <td className="px-4 py-3 font-semibold text-[#0072BC]">{item.disponible}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex gap-1">
+                                  <button type="button" onClick={() => handleStartEdit(item)} className="rounded border border-[#C9D8E6] px-2 py-1 text-xs font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
+                                  <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Eliminar</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

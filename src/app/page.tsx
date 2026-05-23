@@ -5,7 +5,7 @@ import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
 type MaterialStatus = "Disponible" | "A revisar" | "Dañado" | "Perdido";
-type LoanStatus = "Activo" | "Devuelto" | "Vencido";
+type LoanStatus = "Activo" | "Devuelto" | "Vencido" | "Anulado";
 
 type Material = {
   id: string;
@@ -283,6 +283,49 @@ export default function Home() {
 
     if (error) {
       console.error("Error al registrar devolución:", error);
+      return;
+    }
+
+    await loadData();
+  }
+
+  async function handleAnnulLoan(loanId: string) {
+    if (
+      !confirm(
+        "¿Marcar este préstamo como no devuelto? El material se descuenta del inventario activo.",
+      )
+    )
+      return;
+
+    const { error } = await supabase
+      .from("prestamos")
+      .update({ estado: "Anulado" })
+      .eq("id", loanId);
+
+    if (error) {
+      console.error("Error al anular préstamo:", error);
+      return;
+    }
+
+    await loadData();
+  }
+
+  async function handleDeleteMaterial(materialId: string, nombre: string) {
+    if (
+      !confirm(
+        `¿Eliminar "${nombre}"? Se borrarán también sus préstamos asociados. Esta acción no se puede deshacer.`,
+      )
+    )
+      return;
+
+    const { error } = await supabase
+      .from("materiales")
+      .delete()
+      .eq("id", materialId);
+
+    if (error) {
+      console.error("Error al eliminar material:", error);
+      alert(`Error: ${error.message}`);
       return;
     }
 
@@ -663,6 +706,13 @@ export default function Home() {
                       </dd>
                     </div>
                   </dl>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMaterial(item.id, item.nombre)}
+                    className="mt-3 w-full rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                  >
+                    Eliminar
+                  </button>
                 </article>
               ))}
             </div>
@@ -678,6 +728,7 @@ export default function Home() {
                     <th className="px-5 py-3 font-medium">Total</th>
                     <th className="px-5 py-3 font-medium">Prestado</th>
                     <th className="px-5 py-3 font-medium">Disponible</th>
+                    <th className="px-5 py-3 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
@@ -703,6 +754,17 @@ export default function Home() {
                       </td>
                       <td className="px-5 py-4 font-semibold text-[#0072BC]">
                         {item.disponible}
+                      </td>
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDeleteMaterial(item.id, item.nombre)
+                          }
+                          className="rounded-md border border-red-200 px-3 py-1 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                        >
+                          Eliminar
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -748,13 +810,22 @@ export default function Home() {
                         {loan.estado}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleReturnLoan(loan.id)}
-                      className="w-full rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-semibold text-[#0072BC] transition hover:border-[#0072BC]/40 hover:bg-[#F5F8FB] sm:w-auto"
-                    >
-                      Registrar devolución
-                    </button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => handleReturnLoan(loan.id)}
+                        className="rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-semibold text-[#0072BC] transition hover:border-[#0072BC]/40 hover:bg-[#F5F8FB]"
+                      >
+                        Registrar devolución
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAnnulLoan(loan.id)}
+                        className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                      >
+                        No vuelve
+                      </button>
+                    </div>
                   </div>
                 ))
               )}

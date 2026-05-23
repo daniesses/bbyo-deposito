@@ -31,11 +31,13 @@ type Prestamo = {
 
 const categorias = [
   "Comida/cocina",
-  "Librería",
   "Merch/BBYO things",
   "Botiquin",
   "Ambientación",
   "Banners",
+  "Librería",
+  "Deporte y recreación",
+  "Judaísmo",
   "Otros",
 ];
 
@@ -303,9 +305,18 @@ export default function Home() {
   }
 
   async function handleAnnulLoan(loanId: string) {
-    if (!confirm("¿Marcar como no devuelto? El préstamo quedará cerrado.")) return;
-    const { error } = await supabase.from("prestamos").update({ estado: "Anulado" }).eq("id", loanId);
-    if (!error) await loadData();
+    if (!confirm("¿Marcar como no devuelto? El préstamo se cerrará y la cantidad se descontará del inventario.")) return;
+    const loan = loans.find((l) => l.id === loanId);
+    if (!loan) return;
+    const material = materials.find((m) => m.id === loan.material_id);
+    const nuevaCantidad = Math.max((material?.cantidad ?? 0) - loan.cantidad, 0);
+    const [{ error: loanError }, { error: matError }] = await Promise.all([
+      supabase.from("prestamos").update({ estado: "Anulado" }).eq("id", loanId),
+      supabase.from("materiales").update({ cantidad: nuevaCantidad }).eq("id", loan.material_id),
+    ]);
+    if (loanError) { alert(`Error: ${loanError.message}`); return; }
+    if (matError) { alert(`Error: ${matError.message}`); return; }
+    await loadData();
   }
 
   async function handleDeleteMaterial(materialId: string, nombre: string) {

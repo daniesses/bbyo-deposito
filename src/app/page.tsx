@@ -27,7 +27,20 @@ type Prestamo = {
   fecha_devolucion_esperada: string;
   estado: LoanStatus;
   notas: string;
+  created_at: string;
 };
+
+function formatDateTime(iso: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const categorias = [
   "Comida/cocina",
@@ -510,16 +523,10 @@ export default function Home() {
                 </select>
               </label>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={labelClass}>
-                  Fecha salida
-                  <input type="date" value={newLoan.fecha_salida} onChange={(e) => setNewLoan({ ...newLoan, fecha_salida: e.target.value })} className={fieldClass} />
-                </label>
-                <label className={labelClass}>
-                  Devolución esperada
-                  <input type="date" value={newLoan.fecha_devolucion_esperada} onChange={(e) => setNewLoan({ ...newLoan, fecha_devolucion_esperada: e.target.value })} className={fieldClass} />
-                </label>
-              </div>
+              <label className={labelClass}>
+                Devolución esperada
+                <input type="date" value={newLoan.fecha_devolucion_esperada} onChange={(e) => setNewLoan({ ...newLoan, fecha_devolucion_esperada: e.target.value })} className={fieldClass} />
+              </label>
 
               <label className={labelClass}>
                 Notas
@@ -735,6 +742,7 @@ export default function Home() {
                         <p className="font-medium text-zinc-900">{loan.material}</p>
                         <p className="text-sm text-zinc-600">{loan.cantidad} unidad(es) · {loan.responsable}</p>
                         <p className="mt-1 text-sm text-zinc-500">{loan.motivo} · Devuelve: {loan.fecha_devolucion_esperada}</p>
+                        <p className="mt-0.5 text-xs text-zinc-400">Retirado: {formatDateTime(loan.created_at)}</p>
                       </div>
                       <span className={loan.estado === "Vencido" ? "rounded-md bg-red-50 px-3 py-1 text-sm font-medium text-red-700" : "rounded-md bg-[#FFF4DF] px-3 py-1 text-sm font-medium text-[#A66000]"}>
                         {loan.estado}
@@ -783,7 +791,7 @@ export default function Home() {
                       <div>
                         <p className="font-medium text-zinc-800">{loan.material}</p>
                         <p className="text-sm text-zinc-500">{loan.cantidad} unidad(es) · {loan.responsable} · {loan.motivo}</p>
-                        <p className="text-xs text-zinc-400">Salida: {loan.fecha_salida} · Devol. esperada: {loan.fecha_devolucion_esperada}</p>
+                        <p className="text-xs text-zinc-400">Retirado: {formatDateTime(loan.created_at)} · Devol. esperada: {loan.fecha_devolucion_esperada}</p>
                       </div>
                       <span className={loan.estado === "Anulado" ? "mt-1 rounded-md bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 sm:mt-0" : "mt-1 rounded-md bg-green-50 px-3 py-1 text-xs font-medium text-green-700 sm:mt-0"}>
                         {loan.estado === "Anulado" ? "No volvió" : "Devuelto"}

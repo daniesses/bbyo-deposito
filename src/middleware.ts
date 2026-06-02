@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 function unauthorizedResponse() {
   return new Response("Autenticacion requerida", {
@@ -61,7 +61,13 @@ export function middleware(request: NextRequest) {
     );
 
     if (isAllowed) {
-      return;
+      const response = NextResponse.next();
+      response.cookies.set("bbyo-user", user, {
+        path: "/",
+        sameSite: "strict",
+        httpOnly: false,
+      });
+      return response;
     }
 
     return unauthorizedResponse();

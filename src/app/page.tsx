@@ -27,6 +27,7 @@ type Prestamo = {
   fecha_devolucion_esperada: string;
   estado: LoanStatus;
   notas: string;
+  es_teen: boolean;
   created_at: string;
 };
 
@@ -81,9 +82,18 @@ const motivos = ["Chapter Meeting", "Evento Regional", "Otro"];
 
 const today = new Date().toISOString().slice(0, 10);
 
+const TEEN_USERS = ["gizborim"];
+
+function getCookie(name: string): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : "";
+}
+
 type InventoryItem = Material & { prestada: number; disponible: number };
 
 export default function Home() {
+  const [currentUser, setCurrentUser] = useState("");
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loans, setLoans] = useState<Prestamo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +129,7 @@ export default function Home() {
     fecha_salida: today,
     fecha_devolucion_esperada: today,
     notas: "",
+    es_teen: false,
   });
   const [categoriaCustom, setCategoriaCustom] = useState("");
   const [responsableCustom, setResponsableCustom] = useState("");
@@ -131,6 +142,10 @@ export default function Home() {
     if (matsData) setMaterials(matsData as Material[]);
     if (loansData) setLoans(loansData as Prestamo[]);
     setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    setCurrentUser(getCookie("bbyo-user"));
   }, []);
 
   useEffect(() => {
@@ -321,11 +336,12 @@ export default function Home() {
       fecha_devolucion_esperada: newLoan.fecha_devolucion_esperada,
       estado: newLoan.fecha_devolucion_esperada < today ? "Vencido" : "Activo",
       notas: newLoan.notas.trim(),
+      es_teen: newLoan.es_teen,
     });
 
     if (error) { alert(`Error al guardar: ${error.message}`); return; }
 
-    setNewLoan({ materialId: newLoan.materialId, cantidad: 1, responsable: responsables[0], motivo: motivos[0], fecha_salida: today, fecha_devolucion_esperada: today, notas: "" });
+    setNewLoan({ materialId: newLoan.materialId, cantidad: 1, responsable: responsables[0], motivo: motivos[0], fecha_salida: today, fecha_devolucion_esperada: today, notas: "", es_teen: false });
     setResponsableCustom("");
     await loadData();
   }
@@ -380,6 +396,8 @@ export default function Home() {
       return next;
     });
   }
+
+  const isTeen = TEEN_USERS.includes(currentUser);
 
   // ── Styles ────────────────────────────────────────────────────────────────
 
@@ -439,8 +457,8 @@ export default function Home() {
         {/* ── Forms ── */}
         <section className="order-3 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
 
-          {/* Agregar material */}
-          <div className={panelClass}>
+          {/* Agregar material — oculto para teens */}
+          {!isTeen && <div className={panelClass}>
             <div className="border-b border-[#D7E7F6] px-5 py-4">
               <h2 className="text-lg font-semibold text-[#0072BC]">Agregar material</h2>
             </div>
@@ -486,7 +504,7 @@ export default function Home() {
                 Agregar material
               </button>
             </form>
-          </div>
+          </div>}
 
           {/* Registrar préstamo */}
           <div className={panelClass}>
@@ -530,7 +548,18 @@ export default function Home() {
 
               <label className={labelClass}>
                 Notas
-                <textarea value={newLoan.notas} onChange={(e) => setNewLoan({ ...newLoan, notas: e.target.value })} className={`${fieldClass} min-h-20`} placeholder="Detalle opcional" />
+                <textarea value={newLoan.notas} onChange={(e) => setNewLoan({ ...newLoan, notas: e.target.value })} className={`${fieldClass} min-h-16`} placeholder="Detalle opcional" />
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-[#D7E7F6] bg-[#F5F8FB] px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={newLoan.es_teen}
+                  onChange={(e) => setNewLoan({ ...newLoan, es_teen: e.target.checked })}
+                  className="h-4 w-4 accent-[#0072BC]"
+                />
+                <span className="text-sm font-medium text-[#1F2D3A]">¿Lo lleva un teen?</span>
+                <span className="ml-auto rounded-full bg-[#EEF6FC] px-2 py-0.5 text-xs font-medium text-[#0072BC]">Teen</span>
               </label>
 
               <button type="submit" disabled={!selectedMaterial || selectedMaterial.disponible < 1} className="rounded-md bg-[#F9A01B] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#D88912] disabled:cursor-not-allowed disabled:bg-zinc-300">
@@ -626,10 +655,12 @@ export default function Home() {
                                   <div><dt className="text-zinc-500">Ubicación</dt><dd className="font-medium text-zinc-900">{item.ubicacion_detallada}</dd></div>
                                 </dl>
                                 {item.notas && <p className="mt-2 text-sm text-zinc-500">{item.notas}</p>}
-                                <div className="mt-3 flex gap-2">
-                                  <button type="button" onClick={() => handleStartEdit(item)} className="flex-1 rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
-                                  <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="flex-1 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Eliminar</button>
-                                </div>
+                                {!isTeen && (
+                                  <div className="mt-3 flex gap-2">
+                                    <button type="button" onClick={() => handleStartEdit(item)} className="flex-1 rounded-md border border-[#C9D8E6] px-3 py-2 text-sm font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
+                                    <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="flex-1 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Eliminar</button>
+                                  </div>
+                                )}
                               </>
                             )}
                           </article>
@@ -652,7 +683,7 @@ export default function Home() {
                     <th className="px-4 py-3 font-medium">Total</th>
                     <th className="px-4 py-3 font-medium">Prestado</th>
                     <th className="px-4 py-3 font-medium">Disponible</th>
-                    <th className="px-4 py-3 font-medium"></th>
+                    {!isTeen && <th className="px-4 py-3 font-medium"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -661,7 +692,7 @@ export default function Home() {
                     return (
                       <Fragment key={cat}>
                         <tr className="cursor-pointer bg-[#F0F7FD] hover:bg-[#E5F0FA]" onClick={() => toggleCategoria(cat)}>
-                          <td colSpan={7} className="px-4 py-2">
+                          <td colSpan={isTeen ? 6 : 7} className="px-4 py-2">
                             <span className="flex items-center gap-2 font-semibold text-[#0072BC]">
                               <span className="text-xs">{collapsed ? "▶" : "▼"}</span>
                               {cat}
@@ -695,20 +726,26 @@ export default function Home() {
                               <td className="px-4 py-3 text-zinc-600">{item.ubicacion_detallada}</td>
                               <td className="px-4 py-3 text-zinc-600">{item.estado}</td>
                               <td className="px-4 py-3">
-                                <div className="flex items-center gap-1">
-                                  <button type="button" onClick={() => handleQuickQuantity(item.id, -1, item.cantidad, item.prestada)} disabled={item.cantidad <= item.prestada} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100 disabled:opacity-40">−</button>
-                                  <span className="w-6 text-center text-zinc-700">{item.cantidad}</span>
-                                  <button type="button" onClick={() => handleQuickQuantity(item.id, 1, item.cantidad, item.prestada)} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100">+</button>
-                                </div>
+                                {isTeen ? (
+                                  <span className="text-zinc-700">{item.cantidad}</span>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <button type="button" onClick={() => handleQuickQuantity(item.id, -1, item.cantidad, item.prestada)} disabled={item.cantidad <= item.prestada} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100 disabled:opacity-40">−</button>
+                                    <span className="w-6 text-center text-zinc-700">{item.cantidad}</span>
+                                    <button type="button" onClick={() => handleQuickQuantity(item.id, 1, item.cantidad, item.prestada)} className="flex h-5 w-5 items-center justify-center rounded border border-zinc-300 text-xs hover:bg-zinc-100">+</button>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-zinc-600">{item.prestada}</td>
                               <td className="px-4 py-3 font-semibold text-[#0072BC]">{item.disponible}</td>
-                              <td className="px-4 py-3">
-                                <div className="flex gap-1">
-                                  <button type="button" onClick={() => handleStartEdit(item)} className="rounded border border-[#C9D8E6] px-2 py-1 text-xs font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
-                                  <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Eliminar</button>
-                                </div>
-                              </td>
+                              {!isTeen && (
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-1">
+                                    <button type="button" onClick={() => handleStartEdit(item)} className="rounded border border-[#C9D8E6] px-2 py-1 text-xs font-medium text-[#0072BC] hover:bg-[#EEF6FC]">Editar</button>
+                                    <button type="button" onClick={() => handleDeleteMaterial(item.id, item.nombre)} className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50">Eliminar</button>
+                                  </div>
+                                </td>
+                              )}
                             </tr>
                           ),
                         )}
@@ -739,10 +776,16 @@ export default function Home() {
                   <div key={loan.id} className="flex flex-col gap-4 px-5 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                       <div>
-                        <p className="font-medium text-zinc-900">{loan.material}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-zinc-900">{loan.material}</p>
+                          {loan.es_teen && (
+                            <span className="rounded-full bg-[#EEF6FC] px-2 py-0.5 text-xs font-medium text-[#0072BC]">Teen</span>
+                          )}
+                        </div>
                         <p className="text-sm text-zinc-600">{loan.cantidad} unidad(es) · {loan.responsable}</p>
                         <p className="mt-1 text-sm text-zinc-500">{loan.motivo} · Devuelve: {loan.fecha_devolucion_esperada}</p>
                         <p className="mt-0.5 text-xs text-zinc-400">Retirado: {formatDateTime(loan.created_at)}</p>
+                        {loan.notas && <p className="mt-1 text-xs text-zinc-400 italic">"{loan.notas}"</p>}
                       </div>
                       <span className={loan.estado === "Vencido" ? "rounded-md bg-red-50 px-3 py-1 text-sm font-medium text-red-700" : "rounded-md bg-[#FFF4DF] px-3 py-1 text-sm font-medium text-[#A66000]"}>
                         {loan.estado}
@@ -789,9 +832,15 @@ export default function Home() {
                   closedLoans.map((loan) => (
                     <div key={loan.id} className="flex flex-col gap-1 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="font-medium text-zinc-800">{loan.material}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-zinc-800">{loan.material}</p>
+                          {loan.es_teen && (
+                            <span className="rounded-full bg-[#EEF6FC] px-2 py-0.5 text-xs font-medium text-[#0072BC]">Teen</span>
+                          )}
+                        </div>
                         <p className="text-sm text-zinc-500">{loan.cantidad} unidad(es) · {loan.responsable} · {loan.motivo}</p>
                         <p className="text-xs text-zinc-400">Retirado: {formatDateTime(loan.created_at)} · Devol. esperada: {loan.fecha_devolucion_esperada}</p>
+                        {loan.notas && <p className="text-xs text-zinc-400 italic">"{loan.notas}"</p>}
                       </div>
                       <span className={loan.estado === "Anulado" ? "mt-1 rounded-md bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 sm:mt-0" : "mt-1 rounded-md bg-green-50 px-3 py-1 text-xs font-medium text-green-700 sm:mt-0"}>
                         {loan.estado === "Anulado" ? "No volvió" : "Devuelto"}

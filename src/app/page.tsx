@@ -31,6 +31,27 @@ type Prestamo = {
   created_at: string;
 };
 
+async function notifyMovement(payload: {
+  tipo: "prestamo" | "devolucion" | "no_vuelve";
+  material: string;
+  cantidad: number;
+  responsable: string;
+  motivo?: string;
+  fecha_devolucion?: string;
+  es_teen?: boolean;
+  notas?: string;
+}) {
+  try {
+    await fetch("/api/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // silencioso — no interrumpir el flujo si falla el mail
+  }
+}
+
 function formatDateTime(iso: string) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -341,14 +362,38 @@ export default function Home() {
 
     if (error) { alert(`Error al guardar: ${error.message}`); return; }
 
+    await notifyMovement({
+      tipo: "prestamo",
+      material: selectedMaterial.nombre,
+      cantidad: qty,
+      responsable: resp,
+      motivo: newLoan.motivo,
+      fecha_devolucion: newLoan.fecha_devolucion_esperada,
+      es_teen: newLoan.es_teen,
+      notas: newLoan.notas.trim() || undefined,
+    });
+
     setNewLoan({ materialId: newLoan.materialId, cantidad: 1, responsable: responsables[0], motivo: motivos[0], fecha_salida: today, fecha_devolucion_esperada: today, notas: "", es_teen: false });
     setResponsableCustom("");
     await loadData();
   }
 
   async function handleReturnLoan(loanId: string) {
+    const loan = loans.find((l) => l.id === loanId);
+    const material = materials.find((m) => m.id === loan?.material_id);
     const { error } = await supabase.from("prestamos").update({ estado: "Devuelto" }).eq("id", loanId);
-    if (!error) await loadData();
+    if (error) return;
+    if (loan && material) {
+      await notifyMovement({
+        tipo: "devolucion",
+        material: material.nombre,
+        cantidad: loan.cantidad,
+        responsable: loan.responsable,
+        motivo: loan.motivo,
+        es_teen: loan.es_teen,
+      });
+    }
+    await loadData();
   }
 
   async function handleAnnulLoan(loanId: string) {
@@ -363,6 +408,14 @@ export default function Home() {
     ]);
     if (loanError) { alert(`Error: ${loanError.message}`); return; }
     if (matError) { alert(`Error: ${matError.message}`); return; }
+    await notifyMovement({
+      tipo: "no_vuelve",
+      material: material?.nombre ?? "Material eliminado",
+      cantidad: loan.cantidad,
+      responsable: loan.responsable,
+      motivo: loan.motivo,
+      es_teen: loan.es_teen,
+    });
     await loadData();
   }
 
